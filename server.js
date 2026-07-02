@@ -64,19 +64,36 @@ app.post('/api/generate', async (req, res) => {
     if (!prompt || !prompt.trim()) return res.status(400).json({ error: 'prompt required' });
     if (!engine || engine === 'auto' || !SYSTEM_PROMPTS[engine]) engine = route(prompt);
 
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
-      max_tokens: 4096,
-      temperature: engine === 'website' ? 0.4 : 0.7,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPTS[engine] },
-        { role: 'user', content: prompt }
-      ],
-      ...(engine === 'website' ? { response_format: { type: 'json_object' } } : {})
-    });
+    const model = process.env.OPENAI_MODEL || 'gpt-5.5';
+    // Research & Business benefit from live web data (market info, current trends, pricing).
+    // Website/Brand/Content are creative/structural — kept fast, no search needed.
+    const useSearch = engine === 'research' || engine === 'business';
 
-    const text = completion.choices?.[0]?.message?.content?.trim() || '';
-    res.json({ engine, text });
+    let text;
+    if (useSearch) {
+      // Responses API + hosted web_search tool — the model can actually browse before answering.
+      const response = await openai.responses.create({
+        model,
+        tools: [{ type: 'web_search' }],
+        instructions: SYSTEM_PROMPTS[engine],
+        input: prompt
+      });
+      text = (response.output_text || '').trim();
+    } else {
+      const completion = await openai.chat.completions.create({
+        model,
+        max_tokens: 4096,
+        temperature: engine === 'website' ? 0.4 : 0.7,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPTS[engine] },
+          { role: 'user', content: prompt }
+        ],
+        ...(engine === 'website' ? { response_format: { type: 'json_object' } } : {})
+      });
+      text = completion.choices?.[0]?.message?.content?.trim() || '';
+    }
+
+    res.json({ engine, text, live: useSearch });
   } catch (err) {
     console.error('generate error:', err.message);
     res.status(500).json({ error: 'generation failed', detail: err.message });
