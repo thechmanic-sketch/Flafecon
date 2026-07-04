@@ -1193,11 +1193,29 @@ function startWorkStatus(bubbleEl,engine){
   const t=setInterval(()=>{ i=(i+1)%steps.length; if(span) span.textContent=steps[i]; },1500);
   return ()=>clearInterval(t);
 }
+/* "undo" / "go back" / "previous version" — restore deterministically, no API call needed */
+const UNDO_RE=/^\s*(undo|go back|revert( it)?|use (the )?previous( version)?|restore (the )?previous( version)?|previous version)\s*[.!]?\s*$/i;
+function tryHandleUndo(text){
+  if(!UNDO_RE.test(text)) return false;
+  switchView('chat');
+  const convo=state.activeConvo;
+  const assistantMsgs=convo?convo.messages.filter(m=>m.role==='assistant'):[];
+  if(assistantMsgs.length<2){ toast('No earlier version to go back to yet.'); return true; }
+  const prev=assistantMsgs[assistantMsgs.length-2];
+  addMessage('user',esc(text));
+  const b=addMessage('assistant','<div class="notice"><b>Restored the previous version.</b></div>',{engine:prev.engine});
+  renderResult(b,prev.engine,prev.text,'',{live:true});
+  convo.messages.push({role:'user',text,engine:prev.engine,ts:Date.now()});
+  convo.messages.push({role:'assistant',text:prev.text,engine:prev.engine,ts:Date.now()});
+  store.save();
+  return true;
+}
 async function generate(){
   if(state.busy)return;
   const ta=$('#prompt');const text=ta.value.trim();if(!text)return;
   if(!auth.loggedIn()){ openAuth(()=>generate()); return; }   // browsing is free; generating needs an account
   if(attachments.some(a=>a.loading)){ toast('Attachments still loading — try again in a second.'); return; }
+  if(tryHandleUndo(text)){ ta.value='';ta.style.height='auto'; return; }
   switchView('chat');
   let engine=route(text);
 
@@ -1222,7 +1240,7 @@ async function generate(){
   // clearly ask for a fresh/different one, edit the existing image instead of
   // generating an unrelated new one — "make it blue" modifies, it doesn't restart.
   let previousImage=null;
-  if(engine==='image' && state.activeConvo && !/\b(different|another|new|from scratch|start over)\b/i.test(text)){
+  if(engine==='image' && state.activeConvo && !/\b(different|another|new|separate|forget|from scratch|start over)\b/i.test(text)){
     const lastImg=[...state.activeConvo.messages].reverse().find(m=>m.role==='assistant'&&m.engine==='image');
     if(lastImg) previousImage=lastImg.text;
   }
