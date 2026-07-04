@@ -181,6 +181,7 @@ body::before{
 .topbar-left{display:flex;align-items:center;gap:8px;flex:none}
 .topbar-center{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
 .brandmark.sm{width:88px;height:26px;flex:none}
+.brandmark.md{width:132px;height:39px;flex:none}
 .topbar h1{font-family:var(--font-display);font-size:17px;font-weight:700;margin:0;letter-spacing:-0.01em;display:flex;align-items:center;gap:10px;min-width:0}
 .crumb{color:var(--muted);font-weight:400;font-size:13px}
 .pill-row{display:flex;gap:8px;align-items:center}
@@ -231,6 +232,7 @@ body::before{
 .content hr{border:none;border-top:1px solid var(--stroke);margin:16px 0}
 .notice{font-size:13px;line-height:1.6;color:#ece3cf;background:linear-gradient(100deg,rgba(227,189,99,0.12),rgba(43,191,140,0.06));border:1px solid rgba(227,189,99,0.26);border-radius:13px;padding:12px 15px;margin-bottom:14px}
 .notice b{color:var(--text-strong)}.notice code{background:rgba(0,0,0,0.3)}
+.work-status{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13.5px}
 .typing{display:inline-flex;gap:4px;padding:4px 0}
 .typing i{width:7px;height:7px;border-radius:50%;background:var(--flame);animation:bounce 1.2s infinite}
 .typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
@@ -384,6 +386,10 @@ body.light .note-when{color-scheme:light}
 .scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99}
 .scrim.show{display:block}
 .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel-solid);border:1px solid var(--stroke-2);padding:11px 20px;border-radius:30px;font-size:13px;box-shadow:var(--shadow);opacity:0;transition:.25s;z-index:200;pointer-events:none}
+.img-preview{display:none;position:fixed;inset:0;z-index:300;background:rgba(4,5,6,0.9);align-items:center;justify-content:center;padding:30px;cursor:zoom-out}
+.img-preview.show{display:flex}
+.img-preview img{max-width:100%;max-height:100%;border-radius:10px;box-shadow:0 30px 70px -20px rgba(0,0,0,0.8)}
+.img-preview-close{position:fixed;top:18px;right:18px;width:38px;height:38px;border-radius:11px;border:1px solid var(--stroke-2);background:var(--panel-solid);color:var(--text);cursor:pointer;font-size:15px}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
 /* ---------- Responsive ---------- */
@@ -392,10 +398,8 @@ body.light .note-when{color-scheme:light}
   .view{padding:20px 16px}
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99;display:none}
   .scrim.show{display:block}
-  .topbar h1{font-size:14px;gap:6px}
-  .crumb{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
-  .topbar-center{justify-content:center;overflow:hidden} /* logo + title centered in the mobile header */
-  .brandmark.sm{width:70px;height:21px}
+  .topbar-center{justify-content:center;overflow:hidden} /* logo centered in the mobile header */
+  .brandmark.md{width:108px;height:32px}
   .composer{padding:6px 6px 6px 10px}
   .upload-btn{width:32px;height:32px}
   .send{width:38px;height:38px}
@@ -490,8 +494,8 @@ body.light .brandmark{background-color:#0e1112;border-radius:10px;background-ori
         <button class="menu-btn" id="menuBtn" title="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
       </div>
       <div class="topbar-center">
-        <div class="brandmark sm" role="img" aria-label="Flafecon"></div>
-        <h1><span id="viewTitle">Create</span> <span class="crumb" id="viewCrumb">— turn an idea into output</span></h1>
+        <div class="brandmark md" role="img" aria-label="Flafecon"></div>
+        <h1 style="display:none"><span id="viewTitle">Create</span> <span class="crumb" id="viewCrumb">— turn an idea into output</span></h1>
       </div>
       <div class="pill-row">
         <button class="assets-toggle" id="assetsToggle" type="button">
@@ -507,7 +511,7 @@ body.light .brandmark{background-color:#0e1112;border-radius:10px;background-ori
       <div class="stream-inner" id="streamInner">
         <div class="hero" id="hero">
           <h2>Build the whole thing.<br><span class="grad">One prompt at a time.</span></h2>
-          <p>Flafecon routes your request to the right engine and turns it into a real deliverable — preview it, copy it, download it. Add your API key to generate your own.</p>
+          <p>Flafecon routes your request to the right engine and turns it into a real deliverable — preview it, copy it, download it.</p>
           <div class="flow">
             <span>Idea</span><span class="arr">→</span><span>Plan</span><span class="arr">→</span><span>Brand</span><span class="arr">→</span><span>Website</span><span class="arr">→</span><span>Business</span>
           </div>
@@ -524,7 +528,7 @@ body.light .brandmark{background-color:#0e1112;border-radius:10px;background-ori
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3.5 3.5 0 014.95 4.95l-9.2 9.19a2 2 0 01-2.82-2.82l8.49-8.48"/></svg>
           </button>
           <input type="file" id="fileInput" multiple hidden>
-          <textarea id="prompt" rows="1" placeholder="Describe what you want to build…"></textarea>
+          <textarea id="prompt" rows="1" placeholder="Let's build…"></textarea>
           <button class="send" id="send" title="Generate">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </button>
@@ -532,7 +536,7 @@ body.light .brandmark{background-color:#0e1112;border-radius:10px;background-ori
       </div>
     </div>
     </div>
-    <div class="page-foot">Flafecon picks the engine automatically — or lock one above. Outputs are copyable & downloadable.</div>
+    <div class="page-foot">Flafecon picks the engine automatically — or lock one above.<br>A product of Techmanic Software and Digital Solutions</div>
 
     <!-- OTHER VIEWS -->
     <div class="view" id="view-dashboard"></div>
@@ -1144,14 +1148,58 @@ function conversationContext(){
 function attachmentsHtml(names){
   return names&&names.length?`<div class="msg-attachments">${names.map(n=>`<span class="msg-attach">📎 ${esc(n)}</span>`).join('')}</div>`:'';
 }
+/* asks the user to confirm before silently jumping to a different engine mid-chat —
+   continuing the current thread is the default/expected behavior, not a surprise switch */
+function askEngineChoice(currentEngine,newEngine){
+  return new Promise(resolve=>{
+    const wrap=addMessage('assistant',`
+      <div class="notice"><b>Continue this chat, or start something new?</b> That sounds like a <strong>${ENGINES[newEngine].label}</strong> request, but this chat has been about <strong>${ENGINES[currentEngine].label}</strong> so far.</div>
+      <div class="out-tools">
+        <button class="btn primary" data-choice="continue">Continue as ${ENGINES[currentEngine].label}</button>
+        <button class="btn" data-choice="new">Start a new ${ENGINES[newEngine].label} chat</button>
+      </div>`);
+    wrap.querySelectorAll('[data-choice]').forEach(b=>{
+      b.onclick=()=>{ wrap.querySelectorAll('[data-choice]').forEach(x=>x.disabled=true); resolve(b.dataset.choice); };
+    });
+  });
+}
+/* work-in-progress status: cycles a short sequence of steps per engine so
+   waiting feels like watching something happen, not a frozen spinner */
+const WORK_STEPS={
+  website:['Thinking…','Planning the page structure…','Writing HTML & CSS…','Polishing the details…'],
+  research:['Thinking…','Gathering information…','Structuring the findings…','Finalizing the brief…'],
+  business:['Thinking…','Mapping the business model…','Running the numbers…','Wrapping up the roadmap…'],
+  brand:['Thinking…','Exploring names & positioning…','Building the visual direction…','Finalizing the brand system…'],
+  content:['Thinking…','Drafting the copy…','Refining the tone…','Polishing the final version…'],
+  image:['Thinking…','Sketching the concept…','Rendering the image…','Adding final touches…']
+};
+function startWorkStatus(bubbleEl,engine){
+  const steps=WORK_STEPS[engine]||WORK_STEPS.content;
+  const span=bubbleEl.querySelector('.work-status-text');
+  let i=0; if(span) span.textContent=steps[0];
+  const t=setInterval(()=>{ i=(i+1)%steps.length; if(span) span.textContent=steps[i]; },1500);
+  return ()=>clearInterval(t);
+}
 async function generate(){
   if(state.busy)return;
   const ta=$('#prompt');const text=ta.value.trim();if(!text)return;
   if(!auth.loggedIn()){ openAuth(()=>generate()); return; }   // browsing is free; generating needs an account
   if(attachments.some(a=>a.loading)){ toast('Attachments still loading — try again in a second.'); return; }
   switchView('chat');
+  let engine=route(text);
+
+  // Prioritize continuing the active chat: if auto-routing picked a different
+  // engine than the one this conversation has been using, ask instead of
+  // silently jumping — that's what was "breaking" mid-chat image requests etc.
+  if(state.mode==='auto' && state.activeConvo && state.activeConvo.engine && state.activeConvo.messages.length && state.activeConvo.engine!==engine){
+    state.busy=true;$('#send').disabled=true;
+    const choice=await askEngineChoice(state.activeConvo.engine,engine);
+    if(choice==='continue') engine=state.activeConvo.engine;
+    else state.activeConvo=null; // starts a fresh thread with the new engine below
+    state.busy=false;$('#send').disabled=false;
+  }
+
   state.busy=true;$('#send').disabled=true;
-  const engine=route(text);
 
   const usableFiles=attachments.filter(a=>a.kind==='text'||a.kind==='image')
     .map(a=>a.kind==='text'?{name:a.name,kind:'text',content:a.content}:{name:a.name,kind:'image',dataUrl:a.dataUrl});
@@ -1166,7 +1214,8 @@ async function generate(){
   addMessage('user',esc(text).replace(/\n/g,'<br>')+attachmentsHtml(attachNames));
   ta.value='';ta.style.height='auto';
   attachments=[];renderAttachments();
-  const thinking=addMessage('assistant',`<span class="typing"><i></i><i></i><i></i></span>`,{engine});
+  const thinking=addMessage('assistant',`<div class="work-status"><span class="typing"><i></i><i></i><i></i></span><span class="work-status-text">Thinking…</span></div>`,{engine});
+  const stopStatus=startWorkStatus(thinking,engine);
   const hist={id:uid(),engine,prompt:text,ts:Date.now()};
   state.history.unshift(hist);renderAssets();
 
@@ -1174,16 +1223,19 @@ async function generate(){
     // ---- LIVE generation ----
     try{
       const raw=await callAI(engine,text,context,usableFiles);
+      stopStatus();
       renderResult(thinking,engine,raw,text,{live:true});
       hist.output=raw;
       convo.messages.push({role:'assistant',text:raw,engine,ts:Date.now()});
       store.save();
     }catch(e){
+      stopStatus();
       thinking.querySelector('.content').innerHTML=
         `<p><strong>Generation failed.</strong> The engine is connected but returned an error (${esc(e.message)}). Check your server logs / API key and try again.</p>`;
     }
   }else if(engine==='image'){
     // Image generation has no offline sample to fall back to — it genuinely needs the live backend.
+    stopStatus();
     thinking.querySelector('.content').innerHTML=
       `<div class="notice">
          <b>Showcase mode — live generation isn't connected yet.</b>
@@ -1192,12 +1244,12 @@ async function generate(){
        </div>`;
   }else{
     // ---- SHOWCASE (no key): honest notice + a real matching example ----
+    stopStatus();
     const s=getSample(engine);
     const raw=engine==='website'?JSON.stringify(s.data):s.text;
     thinking.querySelector('.content').innerHTML=
       `<div class="notice">
          <b>Showcase mode — live generation isn't connected yet.</b>
-         Adding your OpenAI key (deploy <code>server.js</code>, see README) turns this into <em>your</em> prompt.
          Meanwhile here's a <strong>real, complete ${ENGINES[engine].label.toLowerCase()} example</strong> — every button below works.
        </div>`;
     renderResult(thinking,engine,raw,s.prompt,{live:false});
@@ -1223,7 +1275,8 @@ function renderResult(bubble,engine,raw,prompt,opts={}){
     const intro='<p>Generated image — preview it below or download the PNG.</p>';
     if(hasNotice) content.insertAdjacentHTML('beforeend',intro);
     else content.innerHTML=intro;
-    content.insertAdjacentHTML('beforeend',`<img src="${raw}" alt="Generated image" style="max-width:100%;border-radius:14px;border:1px solid var(--stroke-2);display:block;margin-top:6px">`);
+    content.insertAdjacentHTML('beforeend',`<img src="${raw}" alt="Generated image" class="gen-image" style="max-width:100%;border-radius:14px;border:1px solid var(--stroke-2);display:block;margin-top:6px;cursor:zoom-in">`);
+    content.querySelector('.gen-image:last-of-type').onclick=()=>openImagePreview(raw);
     attachImageTools(bubble,{prompt,dataUrl:raw});
   }else{
     if(hasNotice) content.insertAdjacentHTML('beforeend',md(raw));
@@ -1231,6 +1284,20 @@ function renderResult(bubble,engine,raw,prompt,opts={}){
     attachTools(bubble,{engine,rawText:raw,prompt});
   }
 }
+function openImagePreview(dataUrl){
+  let modal=$('#imgPreview');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='imgPreview';
+    modal.className='img-preview';
+    modal.innerHTML=`<img id="imgPreviewSrc" src="" alt="Preview"><button class="img-preview-close" id="imgPreviewClose" title="Close">✕</button>`;
+    document.body.appendChild(modal);
+    modal.onclick=e=>{ if(e.target===modal||e.target.id==='imgPreviewClose') closeImagePreview(); };
+  }
+  $('#imgPreviewSrc').src=dataUrl;
+  modal.classList.add('show');
+}
+function closeImagePreview(){ $('#imgPreview')?.classList.remove('show'); }
 function attachImageTools(bubbleEl,{prompt,dataUrl}){
   const tools=document.createElement('div');tools.className='out-tools';
   const dl=mkBtn('Download PNG',iconDl());
