@@ -59,7 +59,7 @@ function route(text) {
 /* ---- main endpoint ---- */
 app.post('/api/generate', async (req, res) => {
   try {
-    const { prompt, history } = req.body || {};
+    const { prompt, history, files } = req.body || {};
     let { engine } = req.body || {};
     if (!prompt || !prompt.trim()) return res.status(400).json({ error: 'prompt required' });
     if (!engine || engine === 'auto' || !SYSTEM_PROMPTS[engine]) engine = route(prompt);
@@ -72,12 +72,30 @@ app.post('/api/generate', async (req, res) => {
     // Recent turns from the same chat thread, so follow-ups build on what was
     // already said instead of the model treating each prompt as a cold start.
     const turns = Array.isArray(history) ? history.slice(-8) : [];
-    const input = [
-      ...turns
-        .filter(t => t && typeof t.content === 'string')
-        .map(t => ({ role: t.role === 'user' ? 'user' : 'assistant', content: t.content.slice(0, 4000) })),
-      { role: 'user', content: prompt }
-    ];
+    const input = turns
+      .filter(t => t && typeof t.content === 'string')
+      .map(t => ({ role: t.role === 'user' ? 'user' : 'assistant', content: t.content.slice(0, 4000) }));
+
+    // Attachments: text files get inlined into the prompt text; images are
+    // passed through as real multimodal input so the model can see them.
+    const textFiles = Array.isArray(files) ? files.filter(f => f && f.kind === 'text' && typeof f.content === 'string') : [];
+    const imageFiles = Array.isArray(files) ? files.filter(f => f && f.kind === 'image' && typeof f.dataUrl === 'string') : [];
+
+    let promptText = prompt;
+    if (textFiles.length) {
+      promptText += '\n\n---\nAttached files:\n' +
+        textFiles.slice(0, 5).map(f => `\n### ${f.name}\n${f.content.slice(0, 8000)}`).join('\n');
+    }
+
+    input.push({
+      role: 'user',
+      content: imageFiles.length
+        ? [
+            { type: 'input_text', text: promptText },
+            ...imageFiles.slice(0, 4).map(f => ({ type: 'input_image', image_url: f.dataUrl }))
+          ]
+        : promptText
+    });
 
     // Single, consistent code path (Responses API) for every engine — avoids mixing
     // the older Chat Completions endpoint with newer models that may not support it.
