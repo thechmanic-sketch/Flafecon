@@ -323,8 +323,10 @@ body::before{
 .hist small{font-size:11px;color:var(--muted)}
 .hist .h-prompt{font-size:11.5px;color:var(--faint);margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 
-/* views other than chat */
-.view{flex:1;overflow:auto;padding:30px 34px;min-height:0;display:none}
+/* views other than chat — centered with a max-width, matching the chat stream,
+   so the interface reads as one consistent layout instead of the chat view
+   being centered while every other page stretches edge-to-edge. */
+.view{flex:1;overflow:auto;padding:30px 34px;min-height:0;display:none;max-width:1100px;width:100%;margin-left:auto;margin-right:auto}
 .view.active{display:block;animation:rise .4s ease both}
 .view-head{margin-bottom:24px}
 .view-head h2{font-family:var(--font-display);font-size:26px;font-weight:800;margin:0 0 6px;letter-spacing:-0.02em}
@@ -1163,19 +1165,6 @@ function attachmentsHtml(names){
 }
 /* asks the user to confirm before silently jumping to a different engine mid-chat —
    continuing the current thread is the default/expected behavior, not a surprise switch */
-function askEngineChoice(currentEngine,newEngine){
-  return new Promise(resolve=>{
-    const wrap=addMessage('assistant',`
-      <div class="notice"><b>Continue this chat, or start something new?</b> That sounds like a <strong>${ENGINES[newEngine].label}</strong> request, but this chat has been about <strong>${ENGINES[currentEngine].label}</strong> so far.</div>
-      <div class="out-tools">
-        <button class="btn primary" data-choice="continue">Continue as ${ENGINES[currentEngine].label}</button>
-        <button class="btn" data-choice="new">Start a new ${ENGINES[newEngine].label} chat</button>
-      </div>`);
-    wrap.querySelectorAll('[data-choice]').forEach(b=>{
-      b.onclick=()=>{ wrap.querySelectorAll('[data-choice]').forEach(x=>x.disabled=true); resolve(b.dataset.choice); };
-    });
-  });
-}
 /* work-in-progress status: cycles a short sequence of steps per engine so
    waiting feels like watching something happen, not a frozen spinner */
 const WORK_STEPS={
@@ -1217,19 +1206,10 @@ async function generate(){
   if(attachments.some(a=>a.loading)){ toast('Attachments still loading — try again in a second.'); return; }
   if(tryHandleUndo(text)){ ta.value='';ta.style.height='auto'; return; }
   switchView('chat');
+  // Fully automatic per-message routing (like ChatGPT's tool selection): each
+  // message picks its own engine from its own content — no interrupting the
+  // user to ask, and no locking a chat to whichever engine it started with.
   let engine=route(text);
-
-  // Prioritize continuing the active chat: if auto-routing picked a different
-  // engine than the one this conversation has been using, ask instead of
-  // silently jumping — that's what was "breaking" mid-chat image requests etc.
-  if(state.mode==='auto' && state.activeConvo && state.activeConvo.engine && state.activeConvo.messages.length && state.activeConvo.engine!==engine){
-    state.busy=true;$('#send').disabled=true;
-    const choice=await askEngineChoice(state.activeConvo.engine,engine);
-    if(choice==='continue') engine=state.activeConvo.engine;
-    else state.activeConvo=null; // starts a fresh thread with the new engine below
-    state.busy=false;$('#send').disabled=false;
-  }
-
   state.busy=true;$('#send').disabled=true;
 
   const usableFiles=attachments.filter(a=>a.kind==='text'||a.kind==='image')
@@ -1248,6 +1228,7 @@ async function generate(){
   if(!state.activeConvo){ state.activeConvo=newConversation(engine); state.conversations.unshift(state.activeConvo); }
   const convo=state.activeConvo;
   if(!convo.title) convo.title=text.slice(0,80);
+  convo.engine=engine; // reflects whichever engine most recently handled this chat, for badges/Recents
   const context=conversationContext();
   convo.messages.push({role:'user',text,engine,ts:Date.now(),files:attachNames});
 
@@ -1858,8 +1839,12 @@ async function addAttachment(file){
 /* =====================================================================
    INIT
    ===================================================================== */
-let HERO_HTML='';
-function resetStream(){ $('#streamInner').innerHTML=HERO_HTML; $('#stream').scrollTop=0; $('#chatArea')?.classList.add('hero-mode'); }
+// Captured synchronously, immediately, at script parse time — not inside bind() —
+// so it can never lose a race against an async event (e.g. Supabase firing a
+// sign-in event during the auth/store load) that calls resetStream() before the
+// hero markup has been saved, which would wipe it with an empty string forever.
+let HERO_HTML=document.getElementById('streamInner')?document.getElementById('streamInner').innerHTML:'';
+function resetStream(){ if(!HERO_HTML)return; $('#streamInner').innerHTML=HERO_HTML; $('#stream').scrollTop=0; $('#chatArea')?.classList.add('hero-mode'); }
 function newChat(){
   switchView('chat');
   setMode('auto');
@@ -1870,7 +1855,6 @@ function newChat(){
   state.activeConvo=null;
 }
 function bind(){
-  HERO_HTML=$('#streamInner').innerHTML;   // pristine hero, before any messages replace it
   $$('#nav .nav-item').forEach(el=>el.onclick=()=>{
     $$('#nav .nav-item').forEach(x=>x.classList.remove('active'));el.classList.add('active');
     const v=el.dataset.view||'chat';switchView(v);
