@@ -12,6 +12,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const OpenAI = require('openai');
+const { toFile } = require('openai');
 require('dotenv').config();
 
 const app = express();
@@ -20,6 +21,20 @@ app.use(express.json({ limit: '4mb' }));
 app.use(express.static(path.join(__dirname, 'public'))); // serves the frontend (index.html)
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+/* ---- governing continuity rules, prepended to every engine's instructions ----
+   Keeps the model treating each chat as one ongoing piece of work instead of
+   restarting from scratch on every message: default to modifying whatever was
+   already being built, change only what's asked, stay consistent, and don't
+   pepper the user with needless clarifying questions. */
+const CONTINUITY_RULES =
+`You are working inside one continuous piece of work with this user, not answering isolated one-off prompts.
+- Default to CONTINUING and MODIFYING what's already been discussed in this conversation. Only treat a message as a brand-new, unrelated request if the user clearly signals that ("start over", "a completely different one", "forget that", "something else entirely").
+- When the user asks for a change ("make it darker", "shorter", "fix this", "use the second version"), change only what they asked for and preserve everything else about the existing work — its structure, style, naming, and details.
+- Stay consistent with the tone, style, terminology, and any names/brand details already established earlier in this conversation, unless told otherwise.
+- Resolve pronouns and references ("it", "that", "the same", "again") against the most recent relevant output in the conversation history.
+- Don't ask clarifying questions unless there are genuinely multiple, meaningfully different ways to interpret the request — otherwise just do the work.
+- Don't narrate your reasoning process — produce the requested output directly.`;
 
 /* ---- engine system prompts (single source of truth, server-side) ---- */
 const SYSTEM_PROMPTS = {
@@ -61,13 +76,24 @@ function route(text) {
 /* ---- main endpoint ---- */
 app.post('/api/generate', async (req, res) => {
   try {
-    const { prompt, history, files } = req.body || {};
+    const { prompt, history, files, previousImage } = req.body || {};
     let { engine } = req.body || {};
     if (!prompt || !prompt.trim()) return res.status(400).json({ error: 'prompt required' });
     if (!engine || engine === 'auto' || !VALID_ENGINES.has(engine)) engine = route(prompt);
 
     if (engine === 'image') {
-      const image = await openai.images.generate({ model: 'gpt-image-1', prompt, size: '1024x1024' });
+      // Continuity: if there's a prior image in this chat and the client didn't
+      // detect a "start a new one" phrase, EDIT that image instead of generating
+      // an unrelated one from scratch — "make it blue" should modify, not restart.
+      let image;
+      if (previousImage && typeof previousImage === 'string' && previousImage.startsWith('data:image')) {
+        const base64 = previousImage.split(',')[1];
+        const buffer = Buffer.from(base64, 'base64');
+        const file = await toFile(buffer, 'previous.png', { type: 'image/png' });
+        image = await openai.images.edit({ model: 'gpt-image-1', image: file, prompt });
+      } else {
+        image = await openai.images.generate({ model: 'gpt-image-1', prompt, size: '1024x1024' });
+      }
       const b64 = image?.data?.[0]?.b64_json;
       if (!b64) throw new Error('empty response from image model');
       return res.json({ engine, image: `data:image/png;base64,${b64}`, live: true });
@@ -110,7 +136,7 @@ app.post('/api/generate', async (req, res) => {
     // the older Chat Completions endpoint with newer models that may not support it.
     const response = await openai.responses.create({
       model,
-      instructions: SYSTEM_PROMPTS[engine],
+      instructions: `${CONTINUITY_RULES}\n\n${SYSTEM_PROMPTS[engine]}`,
       input,
       ...(useSearch ? { tools: [{ type: 'web_search' }] } : {})
     });
