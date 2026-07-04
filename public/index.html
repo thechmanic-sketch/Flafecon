@@ -493,7 +493,6 @@ body.light .brandmark{background-color:#0e1112;border-radius:10px;background-ori
     <!-- DOCK -->
     <div class="dock">
       <div class="dock-inner">
-        <div class="modes" id="modes"></div>
         <div class="attach-row" id="attachRow"></div>
         <div class="composer">
           <button class="upload-btn" id="uploadBtn" title="Attach files" type="button">
@@ -1408,15 +1407,6 @@ function setEngineLabel(m){
   $('#engineLabel').textContent = BACKEND_READY ? base : base+' · showcase';
 }
 
-/* build mode chips */
-function buildModes(){
-  const wrap=$('#modes');
-  wrap.innerHTML=Object.keys(ENGINES).map(k=>`
-    <div class="mode ${k==='auto'?'active':''}" data-mode="${k}">
-      <span class="d" style="background:${ENGINES[k].color}"></span>${ENGINES[k].label}
-    </div>`).join('');
-  $$('.mode',wrap).forEach(el=>el.onclick=()=>setMode(el.dataset.mode));
-}
 /* hero cards */
 function buildHero(){
   const examples={
@@ -1596,7 +1586,7 @@ function newChat(){
 }
 function bind(){
   HERO_HTML=$('#streamInner').innerHTML;   // pristine hero, before any messages replace it
-  buildModes();buildHero();
+  buildHero();
   $$('#nav .nav-item').forEach(el=>el.onclick=()=>{
     $$('#nav .nav-item').forEach(x=>x.classList.remove('active'));el.classList.add('active');
     const v=el.dataset.view||'chat';switchView(v);
