@@ -481,11 +481,10 @@ body.light .brandmark{background-color:#0e1112;border-radius:10px;background-ori
       <div class="stream-inner" id="streamInner">
         <div class="hero" id="hero">
           <h2>Build the whole thing.<br><span class="grad">One prompt at a time.</span></h2>
-          <p>Flafecon routes your request to the right engine and turns it into a real deliverable. <strong>Tap any engine below to load a complete, working example</strong> — preview it, copy it, download it. Add your API key to generate your own.</p>
+          <p>Flafecon routes your request to the right engine and turns it into a real deliverable — preview it, copy it, download it. Add your API key to generate your own.</p>
           <div class="flow">
             <span>Idea</span><span class="arr">→</span><span>Plan</span><span class="arr">→</span><span>Brand</span><span class="arr">→</span><span>Website</span><span class="arr">→</span><span>Business</span>
           </div>
-          <div class="cards" id="heroCards"></div>
         </div>
       </div>
     </div>
@@ -1407,25 +1406,6 @@ function setEngineLabel(m){
   $('#engineLabel').textContent = BACKEND_READY ? base : base+' · showcase';
 }
 
-/* hero cards */
-function buildHero(){
-  const examples={
-    website:'A landing page for a cold-brew coffee subscription',
-    research:'Research the at-home fitness equipment market in 2026',
-    business:'A business model for a freelance design marketplace',
-    brand:'Build a brand for a sustainable sneaker startup',
-    content:'5 LinkedIn posts launching an AI note-taking app'
-  };
-  $('#heroCards').innerHTML=Object.keys(examples).map(k=>`
-    <div class="card" data-mode="${k}" data-ex="${esc(examples[k])}">
-      <div class="ico" style="background:${ENGINES[k].grad||ENGINES[k].color};color:#0a0b0f;font-weight:700">${ENGINES[k].icon}</div>
-      <h3>${ENGINES[k].label} Engine</h3>
-      <p>${{website:'Full responsive sites — HTML, CSS & JS, ready to ship.',research:'Executive summaries, findings, risks & recommendations.',business:'Concept, market, revenue, pricing & roadmap.',brand:'Name, positioning, voice, visual direction & strategy.',content:'Blogs, social, ads, emails & product copy.'}[k]}</p>
-      <div class="ex">“${examples[k]}”</div>
-    </div>`).join('');
-  $$('#heroCards .card').forEach(el=>el.onclick=()=>{setMode(el.dataset.mode);showSample(el.dataset.mode);});
-}
-
 /* ---------- auth UI (modal-on-demand; browsing is free, generating is gated) ---------- */
 let pendingAction=null;
 const USE_OPTIONS=['Build websites','Branding & identity','Business & startup planning','Research & analysis','Marketing & content','Just exploring'];
@@ -1575,7 +1555,7 @@ function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','
    INIT
    ===================================================================== */
 let HERO_HTML='';
-function resetStream(){ $('#streamInner').innerHTML=HERO_HTML; buildHero(); $('#stream').scrollTop=0; }
+function resetStream(){ $('#streamInner').innerHTML=HERO_HTML; $('#stream').scrollTop=0; }
 function newChat(){
   switchView('chat');
   setMode('auto');
@@ -1586,7 +1566,6 @@ function newChat(){
 }
 function bind(){
   HERO_HTML=$('#streamInner').innerHTML;   // pristine hero, before any messages replace it
-  buildHero();
   $$('#nav .nav-item').forEach(el=>el.onclick=()=>{
     $$('#nav .nav-item').forEach(x=>x.classList.remove('active'));el.classList.add('active');
     const v=el.dataset.view||'chat';switchView(v);
