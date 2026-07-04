@@ -1214,6 +1214,10 @@ async function generate(){
   if(attachments.some(a=>a.loading)){ toast('Attachments still loading — try again in a second.'); return; }
   if(tryHandleUndo(text)){ ta.value='';ta.style.height='auto'; return; }
   switchView('chat');
+  // Snapshot which account started this request — if the user logs out or
+  // switches accounts while it's still in flight, the response must never be
+  // saved into (or rendered for) a different account than the one that asked.
+  const requestUserId=auth.user?auth.user.id:null;
   // Fully automatic per-message routing (like ChatGPT's tool selection): each
   // message picks its own engine from its own content — no interrupting the
   // user to ask, and no locking a chat to whichever engine it started with.
@@ -1253,10 +1257,14 @@ async function generate(){
     try{
       const raw=await callAI(engine,text,context,usableFiles,previousImage);
       stopStatus();
-      renderResult(thinking,engine,raw,text,{live:true});
-      hist.output=raw;
-      convo.messages.push({role:'assistant',text:raw,engine,ts:Date.now()});
-      store.save();
+      if((auth.user?auth.user.id:null)!==requestUserId){
+        // account changed mid-request — drop the result, don't leak it into the new account
+      }else{
+        renderResult(thinking,engine,raw,text,{live:true});
+        hist.output=raw;
+        convo.messages.push({role:'assistant',text:raw,engine,ts:Date.now()});
+        store.save();
+      }
     }catch(e){
       stopStatus();
       thinking.querySelector('.content').innerHTML=
