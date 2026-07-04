@@ -82,7 +82,24 @@ app.post('/api/generate', async (req, res) => {
     if (!prompt || !prompt.trim()) return res.status(400).json({ error: 'prompt required' });
     if (!engine || engine === 'auto' || !VALID_ENGINES.has(engine)) engine = route(prompt);
 
+    // Recent turns from the same chat thread — used to keep every engine
+    // (including image, mid-chat, from any other engine) aware of what's
+    // already been established, instead of treating each message in isolation.
+    const turns = Array.isArray(history) ? history.slice(-8) : [];
+
     if (engine === 'image') {
+      // Fold in relevant context from the conversation so an image requested
+      // mid-chat (e.g. during a business or website chat) reflects the name,
+      // description, and details already discussed, not just the bare request.
+      const contextSummary = turns
+        .filter(t => t && typeof t.content === 'string')
+        .map(t => `${t.role === 'user' ? 'User' : 'Assistant'}: ${t.content.slice(0, 500)}`)
+        .join('\n')
+        .slice(0, 3000);
+      const imagePrompt = contextSummary
+        ? `Relevant context from the ongoing conversation:\n${contextSummary}\n\nImage request: ${prompt}`
+        : prompt;
+
       // Continuity: if there's a prior image in this chat and the client didn't
       // detect a "start a new one" phrase, EDIT that image instead of generating
       // an unrelated one from scratch — "make it blue" should modify, not restart.
@@ -91,9 +108,9 @@ app.post('/api/generate', async (req, res) => {
         const base64 = previousImage.split(',')[1];
         const buffer = Buffer.from(base64, 'base64');
         const file = await toFile(buffer, 'previous.png', { type: 'image/png' });
-        image = await openai.images.edit({ model: 'gpt-image-1', image: file, prompt });
+        image = await openai.images.edit({ model: 'gpt-image-1', image: file, prompt: imagePrompt });
       } else {
-        image = await openai.images.generate({ model: 'gpt-image-1', prompt, size: '1024x1024' });
+        image = await openai.images.generate({ model: 'gpt-image-1', prompt: imagePrompt, size: '1024x1024' });
       }
       const b64 = image?.data?.[0]?.b64_json;
       if (!b64) throw new Error('empty response from image model');
@@ -105,9 +122,6 @@ app.post('/api/generate', async (req, res) => {
     // Website/Brand/Content are creative/structural — no search needed, kept faster & cheaper.
     const useSearch = engine === 'research' || engine === 'business';
 
-    // Recent turns from the same chat thread, so follow-ups build on what was
-    // already said instead of the model treating each prompt as a cold start.
-    const turns = Array.isArray(history) ? history.slice(-8) : [];
     const input = turns
       .filter(t => t && typeof t.content === 'string')
       .map(t => ({ role: t.role === 'user' ? 'user' : 'assistant', content: t.content.slice(0, 4000) }));
