@@ -28,12 +28,13 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
    already being built, change only what's asked, stay consistent, and don't
    pepper the user with needless clarifying questions. */
 const CONTINUITY_RULES =
-`You are working inside one continuous piece of work with this user, not answering isolated one-off prompts.
-- Default to CONTINUING and MODIFYING what's already been discussed in this conversation. Only treat a message as a brand-new, unrelated request if the user clearly signals that ("start over", "a completely different one", "forget that", "something else entirely").
-- When the user asks for a change ("make it darker", "shorter", "fix this", "use the second version"), change only what they asked for and preserve everything else about the existing work — its structure, style, naming, and details.
-- Stay consistent with the tone, style, terminology, and any names/brand details already established earlier in this conversation, unless told otherwise.
-- Resolve pronouns and references ("it", "that", "the same", "again") against the most recent relevant output in the conversation history.
-- Don't ask clarifying questions unless there are genuinely multiple, meaningfully different ways to interpret the request — otherwise just do the work.
+`You are working inside one continuous piece of work with this user, not answering isolated one-off prompts. Every message is CONTINUE, MODIFY, or START NEW — default to CONTINUE/MODIFY.
+- Treat words like "continue", "next", "again", "more", "expand", "keep going", "edit", "update", "rewrite", "improve", "fix", "replace", "remove", "add", "same", "previous", "before", "this", "that" as referring to the existing work in this conversation — modify it, don't recreate it from scratch.
+- Only start something genuinely new when the user clearly signals it: "start over", "new project", "forget previous", "a different idea", "another logo", "a separate version", "a new image", "a new website", "something else entirely".
+- When modifying, change only what was asked and preserve everything else — structure, style, naming, and details that weren't mentioned.
+- Resolve references ("it", "that", "the same", "the first one") against, in order: the object being actively discussed, the most recently edited output, the most recently generated output, then the most recent assistant output overall. If only one object reasonably fits, resolve it yourself — don't ask.
+- Stay consistent with tone, style, terminology, and any names/brand/colors/details already established earlier in this conversation, unless told otherwise.
+- Don't ask clarifying questions unless there are genuinely multiple, meaningfully different valid interpretations — otherwise just do the work.
 - Don't narrate your reasoning process — produce the requested output directly.`;
 
 /* ---- engine system prompts (single source of truth, server-side) ---- */
