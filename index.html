@@ -88,7 +88,12 @@ body::before{
 ::-webkit-scrollbar-thumb:hover{background:var(--t-strong);background-clip:padding-box}
 
 /* ---------- App shell ---------- */
-.app{position:relative;z-index:1;display:grid;grid-template-columns:248px 1fr 320px;height:100vh;height:100dvh;gap:0}
+.app{position:relative;z-index:1;display:grid;grid-template-columns:248px 1fr 320px;height:100vh;height:100dvh;gap:0;transition:grid-template-columns .2s}
+.app.assets-hidden{grid-template-columns:248px 1fr 0px}
+.app.assets-hidden .assets{display:none}
+.assets-toggle{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);background:var(--t-fill);border:1px solid var(--stroke);border-radius:20px;padding:6px 12px;cursor:pointer;transition:.16s}
+.assets-toggle:hover{color:var(--text);border-color:var(--stroke-2)}
+.assets-toggle svg{width:14px;height:14px}
 .glass{background:var(--panel);backdrop-filter:blur(22px) saturate(140%);-webkit-backdrop-filter:blur(22px) saturate(140%)}
 
 /* ---------- Sidebar ---------- */
@@ -464,6 +469,10 @@ body.light .brandmark{background-color:#0e1112;border-radius:10px;background-ori
       </h1>
       <div class="pill-row">
         <span class="ai-status"><span class="status-dot"></span><span id="engineLabel">Auto-routing</span></span>
+        <button class="assets-toggle" id="assetsToggle" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+          <span id="assetsToggleLabel">Assets</span>
+        </button>
       </div>
     </div>
 
@@ -1129,6 +1138,7 @@ function registerFile(name,kind,content,engine){
 function fileColor(k){return{html:'#4be3df',css:'#5fcbcf',js:'#e3bd63',zip:'#2bbf8c',md:'#d9b14e'}[k]||'#8a948f';}
 function renderAssets(){
   $('#assetCount').textContent=state.files.length+' file'+(state.files.length===1?'':'s');
+  if(state.files.length) $('.app').classList.remove('assets-hidden');
   const body=$('#assetsBody');const tab=state.tab;
   if(tab==='history'){
     if(!state.history.length){body.innerHTML=emptyMini('No history yet','Your prompts will appear here.');return;}
@@ -1595,6 +1605,11 @@ function bind(){
   });
   $('#newChat').onclick=newChat;
   $$('#seg button').forEach(b=>b.onclick=()=>{$$('#seg button').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.tab=b.dataset.tab;renderAssets();});
+  if(!state.files.length) $('.app').classList.add('assets-hidden');
+  $('#assetsToggle').onclick=()=>{
+    const hidden=$('.app').classList.toggle('assets-hidden');
+    $('#assetsToggleLabel').textContent=hidden?'Show assets':'Assets';
+  };
   $('#send').onclick=generate;
   $('#uploadBtn').onclick=()=>$('#fileInput').click();
   $('#fileInput').addEventListener('change',e=>{
