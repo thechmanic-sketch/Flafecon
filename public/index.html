@@ -178,7 +178,10 @@ body::before{
 /* ---------- Workspace ---------- */
 .workspace{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 26px;border-bottom:1px solid var(--stroke);gap:16px}
-.topbar h1{font-family:var(--font-display);font-size:17px;font-weight:700;margin:0;letter-spacing:-0.01em;display:flex;align-items:center;gap:10px}
+.topbar-left{display:flex;align-items:center;gap:8px;flex:none}
+.topbar-center{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.brandmark.sm{width:88px;height:26px;flex:none}
+.topbar h1{font-family:var(--font-display);font-size:17px;font-weight:700;margin:0;letter-spacing:-0.01em;display:flex;align-items:center;gap:10px;min-width:0}
 .crumb{color:var(--muted);font-weight:400;font-size:13px}
 .pill-row{display:flex;gap:8px;align-items:center}
 .status-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal);animation:pulse 2.4s infinite}
@@ -389,9 +392,10 @@ body.light .note-when{color-scheme:light}
   .view{padding:20px 16px}
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99;display:none}
   .scrim.show{display:block}
-  .crumb{display:none}
-  .topbar h1{font-size:15px;gap:8px}
-  .ai-status span:not(.status-dot){max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .topbar h1{font-size:14px;gap:6px}
+  .crumb{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+  .topbar-center{justify-content:center;overflow:hidden} /* logo + title centered in the mobile header */
+  .brandmark.sm{width:70px;height:21px}
   .composer{padding:6px 6px 6px 10px}
   .upload-btn{width:32px;height:32px}
   .send{width:38px;height:38px}
@@ -481,11 +485,14 @@ body.light .brandmark{background-color:#0e1112;border-radius:10px;background-ori
   <!-- ============ WORKSPACE ============ -->
   <main class="workspace">
     <div class="topbar">
-      <h1>
+      <div class="topbar-left">
         <button class="back-btn" id="backBtn" title="Back" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
         <button class="menu-btn" id="menuBtn" title="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
-        <span id="viewTitle">Create</span> <span class="crumb" id="viewCrumb">— turn an idea into output</span>
-      </h1>
+      </div>
+      <div class="topbar-center">
+        <div class="brandmark sm" role="img" aria-label="Flafecon"></div>
+        <h1><span id="viewTitle">Create</span> <span class="crumb" id="viewCrumb">— turn an idea into output</span></h1>
+      </div>
       <div class="pill-row">
         <button class="assets-toggle" id="assetsToggle" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
@@ -517,7 +524,7 @@ body.light .brandmark{background-color:#0e1112;border-radius:10px;background-ori
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3.5 3.5 0 014.95 4.95l-9.2 9.19a2 2 0 01-2.82-2.82l8.49-8.48"/></svg>
           </button>
           <input type="file" id="fileInput" multiple hidden>
-          <textarea id="prompt" rows="1" placeholder="Describe what you want to build… e.g. “A landing page for a cold-brew coffee subscription”"></textarea>
+          <textarea id="prompt" rows="1" placeholder="Describe what you want to build…"></textarea>
           <button class="send" id="send" title="Generate">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </button>
@@ -591,7 +598,10 @@ const ENGINES = {
     grad:'linear-gradient(135deg,#34d49a,#1f9b74)' },
   content:  { label:'Content', color:'#d9b14e', icon:'≡',
     keywords:['blog','post','tweet','social','ad copy','email','caption','content','newsletter','product description','article','copy for','linkedin','instagram'],
-    grad:'linear-gradient(135deg,#e8cf86,#b89240)' }
+    grad:'linear-gradient(135deg,#e8cf86,#b89240)' },
+  image:    { label:'Image', color:'#e08fd8', icon:'▧',
+    keywords:['image','picture','photo','illustration','draw','drawing','artwork','generate an image','icon of','poster','graphic of','render of','picture of','photo of'],
+    grad:'linear-gradient(135deg,#f0a8e8,#b667c9)' }
 };
 
 const SYSTEM_PROMPTS = {
@@ -761,8 +771,8 @@ async function callAI(engine,userPrompt,history=[],files=[]){
   if(r.status===413) throw new Error('Attachments are too large — remove one and try again.');
   if(!r.ok)throw new Error('backend '+r.status);
   const d=await r.json();
-  if(!d.text)throw new Error('empty');
-  return d.text;
+  if(!d.text && !d.image)throw new Error('empty');
+  return engine==='image' ? d.image : d.text;
 }
 /* detect whether the live engine is reachable (called once at startup) */
 async function detectBackend(){
@@ -1126,7 +1136,8 @@ function newConversation(engine){
    treat every follow-up as a brand-new, context-free request */
 function conversationContext(){
   if(!state.activeConvo) return [];
-  return state.activeConvo.messages.slice(-8).map(m=>({role:m.role,content:m.text}));
+  // an image reply's "text" is a huge base64 data URL — never send that back as context
+  return state.activeConvo.messages.slice(-8).map(m=>({role:m.role,content:m.engine==='image'&&m.role==='assistant'?'[generated an image]':m.text}));
 }
 
 /* ---------- generation flow ---------- */
@@ -1171,6 +1182,14 @@ async function generate(){
       thinking.querySelector('.content').innerHTML=
         `<p><strong>Generation failed.</strong> The engine is connected but returned an error (${esc(e.message)}). Check your server logs / API key and try again.</p>`;
     }
+  }else if(engine==='image'){
+    // Image generation has no offline sample to fall back to — it genuinely needs the live backend.
+    thinking.querySelector('.content').innerHTML=
+      `<div class="notice">
+         <b>Showcase mode — live generation isn't connected yet.</b>
+         Image generation needs a real API call every time — there's no offline example for it like the text engines have.
+         Deploy <code>server.js</code> with your OpenAI key (see README) to generate real images.
+       </div>`;
   }else{
     // ---- SHOWCASE (no key): honest notice + a real matching example ----
     const s=getSample(engine);
@@ -1200,11 +1219,31 @@ function renderResult(bubble,engine,raw,prompt,opts={}){
     if(hasNotice) content.insertAdjacentHTML('beforeend',intro);
     else content.innerHTML=intro;
     renderWebsite(bubble,raw,prompt);
+  }else if(engine==='image'){
+    const intro='<p>Generated image — preview it below or download the PNG.</p>';
+    if(hasNotice) content.insertAdjacentHTML('beforeend',intro);
+    else content.innerHTML=intro;
+    content.insertAdjacentHTML('beforeend',`<img src="${raw}" alt="Generated image" style="max-width:100%;border-radius:14px;border:1px solid var(--stroke-2);display:block;margin-top:6px">`);
+    attachImageTools(bubble,{prompt,dataUrl:raw});
   }else{
     if(hasNotice) content.insertAdjacentHTML('beforeend',md(raw));
     else content.innerHTML=md(raw);
     attachTools(bubble,{engine,rawText:raw,prompt});
   }
+}
+function attachImageTools(bubbleEl,{prompt,dataUrl}){
+  const tools=document.createElement('div');tools.className='out-tools';
+  const dl=mkBtn('Download PNG',iconDl());
+  dl.onclick=()=>{
+    const a=document.createElement('a');a.href=dataUrl;a.download=`flafecon-image-${uid()}.png`;document.body.appendChild(a);a.click();a.remove();
+    registerFile(`image-${uid()}.png`,'png',dataUrl,'image');
+    toast('Downloaded');
+  };
+  tools.appendChild(dl);
+  const save=mkBtn('Save to project',iconSave());
+  save.onclick=()=>{saveProject('image',prompt,dataUrl);toast('Saved to Projects');};
+  tools.appendChild(save);
+  bubbleEl.querySelector('.bubble').appendChild(tools);
 }
 
 /* load a real example on demand (hero cards / dashboard) */
@@ -1226,7 +1265,7 @@ function registerFile(name,kind,content,engine){
   state.files.unshift({id:uid(),name,kind,content,engine,ts:Date.now()});
   renderAssets();store.save();
 }
-function fileColor(k){return{html:'#4be3df',css:'#5fcbcf',js:'#e3bd63',zip:'#2bbf8c',md:'#d9b14e'}[k]||'#8a948f';}
+function fileColor(k){return{html:'#4be3df',css:'#5fcbcf',js:'#e3bd63',zip:'#2bbf8c',md:'#d9b14e',png:'#e08fd8'}[k]||'#8a948f';}
 function renderAssets(){
   $('#assetCount').textContent=state.files.length+' file'+(state.files.length===1?'':'s');
   const body=$('#assetsBody');const tab=state.tab;
@@ -1251,6 +1290,10 @@ function renderAssets(){
     </div>`).join('');
   $$('.asset',body).forEach(el=>el.onclick=()=>{
     const f=state.files.find(x=>x.id===el.dataset.id);if(!f)return;
+    if(f.kind==='png'){ // content is already a data: URL — download directly, don't wrap it as text
+      const a=document.createElement('a');a.href=f.content;a.download=f.name;document.body.appendChild(a);a.click();a.remove();
+      toast('Downloaded '+f.name);return;
+    }
     const types={html:'text/html',css:'text/css',js:'text/javascript',md:'text/markdown',zip:'text/html'};
     download(f.name.replace(/\s/g,'-').replace('(preview)','')+(f.kind==='zip'?'.html':''),f.content,types[f.kind]||'text/plain');
     toast('Downloaded '+f.name);
@@ -1270,7 +1313,7 @@ function renderProjects(){
     ${state.projects.length?`<div class="grid-cards">${state.projects.map(p=>`
       <div class="proj-card" data-id="${p.id}">
         <div class="pt">${esc(p.title||'Untitled')}</div>
-        <div class="pd">${esc((p.output||'').replace(/[#*`]/g,'').slice(0,110))}…</div>
+        <div class="pd">${p.engine==='image'?'Generated image':esc((p.output||'').replace(/[#*`]/g,'').slice(0,110))+'…'}</div>
         <div class="pm"><span>${ENGINES[p.engine]?.label||''}</span><span>${timeAgo(p.ts)}</span></div>
       </div>`).join('')}</div>`
     :`<div class="empty-mini" style="padding:60px">No saved projects yet.<br>Generate something and hit “Save to project”.</div>`}`;

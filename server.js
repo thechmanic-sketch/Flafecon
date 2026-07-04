@@ -5,7 +5,7 @@
  *
  *   POST /api/generate   { engine: string, prompt: string }  ->  { text: string }
  *
- * Engines: website | research | business | brand | content
+ * Engines: website | research | business | brand | content | image
  * Run:  npm install && npm run dev   (needs OPENAI_API_KEY in .env)
  */
 const express = require('express');
@@ -44,8 +44,10 @@ const KEYWORDS = {
   research: ['research','analyze','analysis','study','market','investigate','report on','competitive','trends','findings'],
   business: ['business','startup','revenue','monetize','business model','pricing','go-to-market','gtm','roadmap','company'],
   brand: ['brand','branding','naming','logo','identity','positioning','tone of voice','tagline','slogan','rebrand'],
-  content: ['blog','post','tweet','social','ad copy','email','caption','content','newsletter','product description','article']
+  content: ['blog','post','tweet','social','ad copy','email','caption','content','newsletter','product description','article'],
+  image: ['image','picture','photo','illustration','draw','drawing','artwork','generate an image','icon of','poster','graphic of','render of']
 };
+const VALID_ENGINES = new Set([...Object.keys(SYSTEM_PROMPTS), 'image']);
 function route(text) {
   const low = (text || '').toLowerCase();
   let best = 'content', score = 0;
@@ -62,7 +64,14 @@ app.post('/api/generate', async (req, res) => {
     const { prompt, history, files } = req.body || {};
     let { engine } = req.body || {};
     if (!prompt || !prompt.trim()) return res.status(400).json({ error: 'prompt required' });
-    if (!engine || engine === 'auto' || !SYSTEM_PROMPTS[engine]) engine = route(prompt);
+    if (!engine || engine === 'auto' || !VALID_ENGINES.has(engine)) engine = route(prompt);
+
+    if (engine === 'image') {
+      const image = await openai.images.generate({ model: 'gpt-image-1', prompt, size: '1024x1024' });
+      const b64 = image?.data?.[0]?.b64_json;
+      if (!b64) throw new Error('empty response from image model');
+      return res.json({ engine, image: `data:image/png;base64,${b64}`, live: true });
+    }
 
     const model = process.env.OPENAI_MODEL || 'gpt-5.5';
     // Research & Business benefit from live web data (market info, current trends, pricing).
@@ -119,7 +128,7 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
-app.get('/api/health', (_req, res) => res.json({ ok: true, engines: Object.keys(SYSTEM_PROMPTS) }));
+app.get('/api/health', (_req, res) => res.json({ ok: true, engines: [...VALID_ENGINES] }));
 
 const PORT = process.env.PORT || 3000;
 if (require.main === module) {
