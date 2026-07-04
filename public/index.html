@@ -712,6 +712,7 @@ function route(text){
 async function callAI(engine,userPrompt,history=[],files=[]){
   const r=await fetch(CONFIG.BACKEND_URL,{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({engine,prompt:userPrompt,history,files})});
+  if(r.status===413) throw new Error('Attachments are too large — remove one and try again.');
   if(!r.ok)throw new Error('backend '+r.status);
   const d=await r.json();
   if(!d.text)throw new Error('empty');
@@ -1608,7 +1609,7 @@ function autoGrow(){const t=$('#prompt');t.style.height='auto';t.style.height=Ma
    and sent to /api/generate so the model actually sees their contents —
    not just a filename with no effect. */
 let attachments=[]; // {name, kind:'text'|'image'|'unsupported', content?, dataUrl?, size, loading}
-const MAX_TEXT_BYTES=1_000_000, MAX_IMAGE_BYTES=5_000_000, MAX_FILES=5;
+const MAX_TEXT_BYTES=800_000, MAX_IMAGE_BYTES=2_000_000, MAX_FILES=5;
 const TEXT_EXT=/\.(txt|md|markdown|csv|tsv|json|js|ts|jsx|tsx|css|html|htm|xml|yml|yaml|py|java|c|cpp|go|rb|sh|log)$/i;
 
 function renderAttachments(){
@@ -1627,10 +1628,10 @@ async function addAttachment(file){
   attachments.push(entry);renderAttachments();
   try{
     if(file.type.startsWith('image/')){
-      if(file.size>MAX_IMAGE_BYTES){ entry.kind='unsupported';entry.error='Image too large (max 5MB).'; }
+      if(file.size>MAX_IMAGE_BYTES){ entry.kind='unsupported';entry.error='Image too large (max 2MB).'; }
       else{ entry.kind='image'; entry.dataUrl=await readFileAsDataURL(file); }
     }else if(file.type.startsWith('text/')||file.type==='application/json'||TEXT_EXT.test(file.name)){
-      if(file.size>MAX_TEXT_BYTES){ entry.kind='unsupported';entry.error='File too large (max 1MB).'; }
+      if(file.size>MAX_TEXT_BYTES){ entry.kind='unsupported';entry.error='File too large (max 800KB).'; }
       else{ entry.kind='text'; entry.content=await readFileAsText(file); }
     }else{
       entry.kind='unsupported'; entry.error='Unsupported file type — attach text, code, or image files.';
