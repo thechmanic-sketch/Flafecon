@@ -59,7 +59,7 @@ function route(text) {
 /* ---- main endpoint ---- */
 app.post('/api/generate', async (req, res) => {
   try {
-    const { prompt } = req.body || {};
+    const { prompt, history } = req.body || {};
     let { engine } = req.body || {};
     if (!prompt || !prompt.trim()) return res.status(400).json({ error: 'prompt required' });
     if (!engine || engine === 'auto' || !SYSTEM_PROMPTS[engine]) engine = route(prompt);
@@ -69,12 +69,22 @@ app.post('/api/generate', async (req, res) => {
     // Website/Brand/Content are creative/structural — no search needed, kept faster & cheaper.
     const useSearch = engine === 'research' || engine === 'business';
 
+    // Recent turns from the same chat thread, so follow-ups build on what was
+    // already said instead of the model treating each prompt as a cold start.
+    const turns = Array.isArray(history) ? history.slice(-8) : [];
+    const input = [
+      ...turns
+        .filter(t => t && typeof t.content === 'string')
+        .map(t => ({ role: t.role === 'user' ? 'user' : 'assistant', content: t.content.slice(0, 4000) })),
+      { role: 'user', content: prompt }
+    ];
+
     // Single, consistent code path (Responses API) for every engine — avoids mixing
     // the older Chat Completions endpoint with newer models that may not support it.
     const response = await openai.responses.create({
       model,
       instructions: SYSTEM_PROMPTS[engine],
-      input: prompt,
+      input,
       ...(useSearch ? { tools: [{ type: 'web_search' }] } : {})
     });
 
