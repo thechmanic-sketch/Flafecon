@@ -249,6 +249,13 @@ body::before{
 .send:hover{transform:scale(1.06)}
 .send:disabled{opacity:.4;cursor:not-allowed;transform:none}
 .send svg{width:18px;height:18px}
+.upload-btn{width:36px;height:36px;border-radius:11px;border:1px solid var(--stroke);background:var(--t-fill);color:var(--muted);cursor:pointer;display:grid;place-items:center;flex:none;transition:.16s;margin-bottom:3px}
+.upload-btn:hover{color:var(--text);border-color:var(--stroke-2);background:var(--t-hover)}
+.upload-btn svg{width:17px;height:17px}
+.attach-row{display:flex;flex-wrap:wrap;gap:6px;padding:0 0 8px}
+.attach-chip{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);background:var(--t-fill);border:1px solid var(--stroke);border-radius:20px;padding:5px 8px 5px 12px}
+.attach-chip button{border:0;background:transparent;color:var(--muted);cursor:pointer;width:16px;height:16px;display:grid;place-items:center;border-radius:50%}
+.attach-chip button:hover{color:var(--flame-2);background:var(--t-hover)}
 .dock-foot{font-size:11px;color:var(--faint);text-align:center;margin-top:10px}
 
 /* ---------- Right panel ---------- */
@@ -478,7 +485,12 @@ body.light .brandmark{background-color:#0e1112;border-radius:10px;background-ori
     <div class="dock">
       <div class="dock-inner">
         <div class="modes" id="modes"></div>
+        <div class="attach-row" id="attachRow"></div>
         <div class="composer">
+          <button class="upload-btn" id="uploadBtn" title="Attach files" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3.5 3.5 0 014.95 4.95l-9.2 9.19a2 2 0 01-2.82-2.82l8.49-8.48"/></svg>
+          </button>
+          <input type="file" id="fileInput" multiple hidden>
           <textarea id="prompt" rows="1" placeholder="Describe what you want to build… e.g. “A landing page for a cold-brew coffee subscription”"></textarea>
           <button class="send" id="send" title="Generate">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -1046,6 +1058,7 @@ async function generate(){
   setEngineLabel(engine);
   addMessage('user',esc(text).replace(/\n/g,'<br>'));
   ta.value='';ta.style.height='auto';
+  attachments=[];renderAttachments();
   const thinking=addMessage('assistant',`<span class="typing"><i></i><i></i><i></i></span>`,{engine});
   const hist={id:uid(),engine,prompt:text,ts:Date.now()};
   state.history.unshift(hist);renderAssets();
@@ -1547,6 +1560,17 @@ function closeSidebar(){$('#sidebar').classList.remove('open');$('#scrim').class
 /* ---------- composer autogrow ---------- */
 function autoGrow(){const t=$('#prompt');t.style.height='auto';t.style.height=Math.min(t.scrollHeight,160)+'px';}
 
+/* ---------- composer attachments ---------- */
+let attachments=[];
+function renderAttachments(){
+  const row=$('#attachRow');
+  row.innerHTML=attachments.map((f,i)=>`
+    <span class="attach-chip">${escapeHtml(f.name)}<button type="button" data-i="${i}" title="Remove">✕</button></span>
+  `).join('');
+  $$('.attach-chip button',row).forEach(b=>b.onclick=()=>{attachments.splice(+b.dataset.i,1);renderAttachments();});
+}
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
 /* =====================================================================
    INIT
    ===================================================================== */
@@ -1558,6 +1582,7 @@ function newChat(){
   $$('#nav .nav-item').forEach(x=>x.classList.toggle('active', x.dataset.view==='chat' && !x.dataset.mode));
   resetStream();
   $('#prompt').value='';$('#prompt').style.height='auto';$('#prompt').focus();
+  attachments=[];renderAttachments();
 }
 function bind(){
   HERO_HTML=$('#streamInner').innerHTML;   // pristine hero, before any messages replace it
@@ -1571,6 +1596,12 @@ function bind(){
   $('#newChat').onclick=newChat;
   $$('#seg button').forEach(b=>b.onclick=()=>{$$('#seg button').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.tab=b.dataset.tab;renderAssets();});
   $('#send').onclick=generate;
+  $('#uploadBtn').onclick=()=>$('#fileInput').click();
+  $('#fileInput').addEventListener('change',e=>{
+    attachments.push(...[...e.target.files]);
+    renderAttachments();
+    e.target.value='';
+  });
   $('#prompt').addEventListener('input',autoGrow);
   $('#prompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();generate();}});
   $('#menuBtn').onclick=openSidebar;$('#scrim').onclick=closeSidebar;
