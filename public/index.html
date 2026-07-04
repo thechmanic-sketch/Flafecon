@@ -4,6 +4,19 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Flafecon — Deep Roots. Endless Possibilities</title>
+<script>
+/* Flafecon ships no service worker. If one is still running from an earlier
+   deploy or a different tool that used this origin, it will keep serving its
+   own cached (stale) copy of the page forever — exactly the "flashes the
+   real page then swaps to an old one" symptom. Kill any leftover ones and
+   their caches on every load so this can't happen again. */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(r=>r.unregister())).catch(()=>{});
+}
+if(window.caches && caches.keys){
+  caches.keys().then(names=>names.forEach(n=>caches.delete(n))).catch(()=>{});
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Sora:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
