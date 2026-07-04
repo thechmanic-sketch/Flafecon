@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Sora:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
   --bg:#070809;
@@ -154,6 +155,8 @@ body::before{
 .auth-check input{accent-color:var(--gold);width:15px;height:15px}
 .auth-check a{color:var(--gold);cursor:pointer;text-decoration:underline}
 .auth-btn{width:100%;justify-content:center;margin-top:4px;padding:12px;font-size:14px}
+.auth-sep{display:flex;align-items:center;gap:10px;margin:2px 0 14px;font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em}
+.auth-sep::before,.auth-sep::after{content:"";flex:1;height:1px;background:var(--stroke)}
 .auth-links{display:flex;justify-content:space-between;gap:12px;margin-top:15px;font-size:12.5px}
 .auth-links a{color:var(--muted);cursor:pointer;transition:.16s}.auth-links a:hover{color:var(--gold)}
 .auth-msg{font-size:12.5px;margin-bottom:10px;line-height:1.4}
@@ -622,7 +625,7 @@ const KV = {
 };
 /* account-scoped key: each signed-in user gets their own history/projects/notes/
    conversations/files, so switching accounts on the same device never mixes data. */
-function acctKey(k){ return 'flafecon:'+(auth.session||'guest')+':'+k; }
+function acctKey(k){ return 'flafecon:'+(auth.user?auth.user.id:'guest')+':'+k; }
 const store = {
   async load(){
     try{
@@ -647,22 +650,49 @@ const store = {
   }
 };
 
-/* ---------- auth (PROTOTYPE — accounts live on this device, NOT a secure server).
-   Real security (server-side hashing, sessions, email reset) arrives with the
-   Supabase/Express backend; this layer is shaped to swap straight over. ---------- */
+/* ---------- auth — real accounts via Supabase Auth.
+   Email/password with server-side hashing, real password-reset emails,
+   Google sign-in, and sessions that work across devices (not just this browser). ---------- */
+const SUPABASE_URL='https://bkqfdrfhvspheyejwzdy.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJrcWZkcmZodnNwaGV5ZWp3emR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNjg4MTQsImV4cCI6MjA5ODc0NDgxNH0.zliOUAnKC9uMSiF0etzWoFnXx87wLIA6QI4K7VfuKsg';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+});
 const auth = {
-  accounts:{}, session:null,
-  async load(){
-    try{
-      const a=await KV.get('flafecon:accounts'); if(a) auth.accounts=JSON.parse(a);
-      const s=await KV.get('flafecon:session'); if(s) auth.session=JSON.parse(s);
-    }catch(e){}
-  },
-  async persist(){ try{ await KV.set('flafecon:accounts',JSON.stringify(auth.accounts)); await KV.set('flafecon:session',JSON.stringify(auth.session)); }catch(e){} },
-  hash(salt,pw){ let h=0x811c9dc5,s=salt+'|'+pw; for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193);} return (h>>>0).toString(16); }, // demo obfuscation only — not secure hashing
-  current(){ return (auth.session && auth.accounts[auth.session]) ? auth.accounts[auth.session] : null; },
-  loggedIn(){ return !!auth.current(); }
+  user:null,
+  async load(){ try{ const {data:{session}}=await sb.auth.getSession(); auth.user=session?session.user:null; }catch(e){} },
+  current(){ return auth.user; },
+  loggedIn(){ return !!auth.user; }
 };
+/* profile fields (name/plan/purpose) live in Supabase's user_metadata — no
+   separate accounts table needed for what this app currently uses. */
+function profile(){
+  const u=auth.user; if(!u) return null;
+  const m=u.user_metadata||{};
+  return { id:u.id, email:u.email, name:m.name||(u.email||'').split('@')[0], plan:m.plan||'free', purpose:m.purpose||[] };
+}
+async function switchAccountData(){
+  await store.load(); state.activeConvo=null; newChat(); renderAssets();
+  if($('#view-recents').innerHTML) renderRecents();
+  updateUser();
+}
+sb.auth.onAuthStateChange(async (event,session)=>{
+  const wasLoggedIn=!!auth.user;
+  auth.user=session?session.user:null;
+  if(event==='SIGNED_IN'&&!wasLoggedIn){
+    $('#authGate').style.display='none';
+    await switchAccountData();
+    const a=pendingAction; pendingAction=null;
+    toast('Welcome'+(profile()&&profile().name?', '+profile().name.split(' ')[0]:'')+'!');
+    if(typeof a==='function') a();
+  }else if(event==='SIGNED_OUT'){
+    await switchAccountData();
+  }else if(event==='PASSWORD_RECOVERY'){
+    openAuth(); renderAuth('newpassword');
+  }else{
+    updateUser();
+  }
+});
 
 
 /* ---------- helpers ---------- */
@@ -1357,7 +1387,7 @@ const PLANS=[
   {id:'r179',name:'R179',price:'R179',period:'mo',tag:'Premium creators & brands',complexity:'PREMIUM',
    features:['Highest creative freedom','Strong visual storytelling','Advanced branding approach','Advanced SEO structure','Conversion-focused design','Fair-use policy']}
 ];
-function currentPlan(){ const a=auth.current(); return (a&&a.plan)||'free'; }
+function currentPlan(){ const p=profile(); return (p&&p.plan)||'free'; }
 function renderUpgrade(){
   const cur=currentPlan();
   $('#view-upgrade').innerHTML=`
@@ -1378,12 +1408,12 @@ function renderUpgrade(){
     <div class="plan-foot">Payments are a prototype — no card is charged when you pick a paid plan. Connecting a gateway (Paystack / Stripe) and the backend makes billing real and enforces each plan's limits automatically.</div>`;
   $$('#view-upgrade [data-plan]').forEach(b=>b.onclick=()=>choosePlan(b.dataset.plan));
 }
-function choosePlan(id){
+async function choosePlan(id){
   if(!auth.loggedIn()){ openAuth(()=>{switchView('upgrade');choosePlan(id);}); return; }
-  const acc=auth.current(); if(!acc) return;
   const p=PLANS.find(x=>x.id===id); if(!p) return;
-  if(id!=='free' && !confirm(`Activate the ${p.name} plan (${p.price}/${p.period})?\n\nThis is a prototype — no card is charged. Connect a payment gateway + backend to bill for real.`)) return;
-  acc.plan=id; acc.planSince=Date.now(); auth.persist();
+  if(id!=='free' && !confirm(`Activate the ${p.name} plan (${p.price}/${p.period})?\n\nThis is a prototype — no card is charged. Connect a payment gateway to bill for real.`)) return;
+  const {error}=await sb.auth.updateUser({data:{plan:id,planSince:Date.now()}});
+  if(error) return toast('Could not update plan: '+error.message);
   renderUpgrade(); updateUser();
   toast(id==='free'?'Switched to Free plan':`${p.name} plan activated`);
 }
@@ -1463,14 +1493,8 @@ function setEngineLabel(m){
 /* ---------- auth UI (modal-on-demand; browsing is free, generating is gated) ---------- */
 let pendingAction=null;
 const USE_OPTIONS=['Build websites','Branding & identity','Business & startup planning','Research & analysis','Marketing & content','Just exploring'];
-function openAuth(pending){ pendingAction=pending||null; $('#authGate').style.display='grid'; renderAuth(Object.keys(auth.accounts).length?'login':'signup'); }
+function openAuth(pending){ pendingAction=pending||null; $('#authGate').style.display='grid'; renderAuth('login'); }
 function closeAuth(){ $('#authGate').style.display='none'; pendingAction=null; }
-async function completeAuth(){
-  $('#authGate').style.display='none'; updateUser();
-  await store.load(); state.activeConvo=null; newChat(); renderAssets();
-  if($('#view-recents').innerHTML) renderRecents();
-  const a=pendingAction; pendingAction=null; if(typeof a==='function') a();
-}
 function authMsg(t,ok){ const m=$('#authMsg'); if(m){ m.textContent=t; m.className='auth-msg '+(ok?'ok':'err'); } }
 function authCard(inner){
   return `<div class="auth-card">
@@ -1480,15 +1504,23 @@ function authCard(inner){
       <div class="brand-slogan">Deep Roots. Endless Possibilities</div>
     </div>${inner}</div>`;
 }
+const GOOGLE_BTN=`
+  <button class="btn auth-btn" id="aGoogle" type="button" style="justify-content:center;gap:10px;margin-bottom:14px">
+    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="#4285F4" d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.63h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.88c2.27-2.09 3.57-5.17 3.57-8.81z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.07 7.94-2.92l-3.88-3c-1.08.72-2.45 1.15-4.06 1.15-3.12 0-5.77-2.11-6.72-4.94H1.27v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.28 14.29A7.2 7.2 0 0 1 4.9 12c0-.8.14-1.57.38-2.29v-3.1H1.27A12 12 0 0 0 0 12c0 1.94.46 3.77 1.27 5.39l4.01-3.1z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.44-3.44C17.94 1.19 15.24 0 12 0 7.31 0 3.26 2.69 1.27 6.61l4.01 3.1C6.23 6.86 8.88 4.75 12 4.75z"/></svg>
+    Continue with Google
+  </button>
+  <div class="auth-sep"><span>or</span></div>`;
 function renderAuth(mode){
-  const titles={login:'Welcome back',signup:'Create your account',forgot:'Reset your password'};
+  const titles={login:'Welcome back',signup:'Create your account',forgot:'Reset your password',newpassword:'Set a new password'};
   let form='';
   if(mode==='login') form=`
+    ${GOOGLE_BTN}
     <input id="aEmail" class="auth-input" type="email" placeholder="Email" autocomplete="username">
     <input id="aPass" class="auth-input" type="password" placeholder="Password" autocomplete="current-password">
     <button class="btn primary auth-btn" id="aGo">Log in</button>
     <div class="auth-links"><a data-mode="forgot">Forgot password?</a><a data-mode="signup">Create account</a></div>`;
   else if(mode==='signup') form=`
+    ${GOOGLE_BTN}
     <input id="aName" class="auth-input" placeholder="Your name">
     <input id="aEmail" class="auth-input" type="email" placeholder="Email">
     <input id="aPass" class="auth-input" type="password" placeholder="Password (min 6 characters)">
@@ -1496,22 +1528,32 @@ function renderAuth(mode){
     <label class="auth-check"><input type="checkbox" id="aTerms"> I agree to the <a id="termsLink">Terms of Use</a></label>
     <button class="btn primary auth-btn" id="aGo">Create account</button>
     <div class="auth-links"><a data-mode="login">← Back to log in</a></div>`;
-  else form=`
+  else if(mode==='forgot') form=`
+    <p class="onb-sub">Enter your account email — we'll send a password reset link to it.</p>
     <input id="aEmail" class="auth-input" type="email" placeholder="Account email">
-    <input id="aPass" class="auth-input" type="password" placeholder="New password (min 6 characters)">
-    <button class="btn primary auth-btn" id="aGo">Reset password</button>
+    <button class="btn primary auth-btn" id="aGo">Send reset email</button>
     <div class="auth-links"><a data-mode="login">← Back to log in</a></div>`;
+  else form=`
+    <p class="onb-sub">Choose a new password for your account.</p>
+    <input id="aPass" class="auth-input" type="password" placeholder="New password (min 6 characters)">
+    <input id="aPass2" class="auth-input" type="password" placeholder="Confirm password">
+    <button class="btn primary auth-btn" id="aGo">Save new password</button>`;
   $('#authGate').innerHTML=authCard(`
     <h2 class="auth-title">${titles[mode]}</h2>
     <div class="auth-msg" id="authMsg"></div>
     ${form}
-    <div class="auth-foot">Prototype sign-in — accounts are stored on this device, not a secure server. Real authentication activates with the backend.</div>`);
+    <div class="auth-foot">Secured by Supabase — your account and password reset emails work for real, and your session carries across devices.</div>`);
   $('#aGo').onclick=()=>authSubmit(mode);
   $('#authClose').onclick=closeAuth;
+  const g=$('#aGoogle'); if(g) g.onclick=()=>signInWithGoogle();
   const tl=$('#termsLink'); if(tl) tl.onclick=renderTerms;
   $$('#authGate [data-mode]').forEach(a=>a.onclick=()=>renderAuth(a.dataset.mode));
   $$('#authGate .auth-input').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();authSubmit(mode);}}));
   setTimeout(()=>$('#authGate .auth-input')&&$('#authGate .auth-input').focus(),30);
+}
+async function signInWithGoogle(){
+  const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}});
+  if(error) authMsg('Google sign-in isn\'t enabled yet: '+error.message);
 }
 function renderTerms(){
   $('#authGate').innerHTML=authCard(`
@@ -1527,38 +1569,45 @@ function renderTerms(){
   $('#authClose').onclick=closeAuth;
   $('#termsBack').onclick=()=>renderAuth('signup');
 }
-function authSubmit(mode){
+async function authSubmit(mode){
   const email=($('#aEmail')&&$('#aEmail').value||'').trim().toLowerCase();
   const pass=($('#aPass')&&$('#aPass').value)||'';
-  if(mode==='login'){
-    const acc=auth.accounts[email];
-    if(!acc) return authMsg('No account with that email.');
-    if(acc.hash!==auth.hash(acc.salt,pass)) return authMsg('Incorrect password.');
-    auth.session=email; auth.persist(); completeAuth();
-  } else if(mode==='signup'){
-    const name=($('#aName')&&$('#aName').value||'').trim();
-    const pass2=($('#aPass2')&&$('#aPass2').value)||'';
-    const terms=$('#aTerms')&&$('#aTerms').checked;
-    if(!name) return authMsg('Enter your name.');
-    if(!/^\S+@\S+\.\S+$/.test(email)) return authMsg('Enter a valid email.');
-    if(pass.length<6) return authMsg('Password must be at least 6 characters.');
-    if(pass!==pass2) return authMsg('Passwords do not match.');
-    if(!terms) return authMsg('Please agree to the Terms of Use.');
-    if(auth.accounts[email]) return authMsg('An account with that email already exists.');
-    const salt=uid()+uid();
-    auth.accounts[email]={name,email,salt,hash:auth.hash(salt,pass),agreedTerms:Date.now(),purpose:[],plan:'free'};
-    auth.session=email; auth.persist();
-    renderOnboarding(email);
-  } else {
-    const acc=auth.accounts[email];
-    if(!acc) return authMsg('No account with that email.');
-    if(pass.length<6) return authMsg('New password must be at least 6 characters.');
-    acc.salt=uid()+uid(); acc.hash=auth.hash(acc.salt,pass); auth.persist();
-    authMsg('Password reset — you can log in now.',true);
-    setTimeout(()=>renderAuth('login'),900);
-  }
+  const go=$('#aGo'); if(go){ go.disabled=true; }
+  try{
+    if(mode==='login'){
+      const {error}=await sb.auth.signInWithPassword({email,password:pass});
+      if(error) return authMsg(error.message);
+      // success is handled centrally by onAuthStateChange('SIGNED_IN')
+    } else if(mode==='signup'){
+      const name=($('#aName')&&$('#aName').value||'').trim();
+      const pass2=($('#aPass2')&&$('#aPass2').value)||'';
+      const terms=$('#aTerms')&&$('#aTerms').checked;
+      if(!name) return authMsg('Enter your name.');
+      if(!/^\S+@\S+\.\S+$/.test(email)) return authMsg('Enter a valid email.');
+      if(pass.length<6) return authMsg('Password must be at least 6 characters.');
+      if(pass!==pass2) return authMsg('Passwords do not match.');
+      if(!terms) return authMsg('Please agree to the Terms of Use.');
+      const {data,error}=await sb.auth.signUp({email,password:pass,options:{data:{name,agreedTerms:Date.now(),purpose:[],plan:'free'}}});
+      if(error) return authMsg(error.message);
+      if(data.session){ renderOnboarding(); }
+      else { authMsg('Check your email to confirm your account, then log in.',true); setTimeout(()=>renderAuth('login'),1600); }
+    } else if(mode==='forgot'){
+      if(!/^\S+@\S+\.\S+$/.test(email)) return authMsg('Enter a valid email.');
+      const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin});
+      if(error) return authMsg(error.message);
+      authMsg('Reset email sent — check your inbox.',true);
+    } else { // newpassword (after clicking the emailed reset link)
+      const pass2=($('#aPass2')&&$('#aPass2').value)||'';
+      if(pass.length<6) return authMsg('Password must be at least 6 characters.');
+      if(pass!==pass2) return authMsg('Passwords do not match.');
+      const {error}=await sb.auth.updateUser({password:pass});
+      if(error) return authMsg(error.message);
+      authMsg('Password updated — you\'re signed in.',true);
+      setTimeout(()=>closeAuth(),1200);
+    }
+  } finally { if(go) go.disabled=false; }
 }
-function renderOnboarding(email){
+function renderOnboarding(){
   let picked=[];
   $('#authGate').innerHTML=authCard(`
     <h2 class="auth-title">What will you use Flafecon for?</h2>
@@ -1571,22 +1620,14 @@ function renderOnboarding(email){
     if(picked.includes(o)){picked=picked.filter(x=>x!==o);c.classList.remove('on');}
     else {picked.push(o);c.classList.add('on');}
   });
-  $('#onbGo').onclick=()=>{
-    const acc=auth.accounts[email]; if(acc){ acc.purpose=picked; auth.persist(); }
-    completeAuth(); toast('Welcome to Flafecon, '+(acc?acc.name.split(' ')[0]:'')+'!');
-  };
+  $('#onbGo').onclick=async()=>{ await sb.auth.updateUser({data:{purpose:picked}}); closeAuth(); };
 }
-async function logout(){
-  auth.session=null; auth.persist(); updateUser();
-  await store.load(); state.activeConvo=null; newChat(); renderAssets();
-  if($('#view-recents').innerHTML) renderRecents();
-  toast('Logged out');
-}
+async function logout(){ await sb.auth.signOut(); toast('Logged out'); }
 function updateUser(){
-  const acc=auth.current(), meta=$('#userMeta'), av=$('#userAvatar'), btn=$('#logoutBtn');
-  if(acc){
-    meta.innerHTML=`<div>${esc(acc.name)}</div><small>${PLANS.find(p=>p.id===(acc.plan||'free')).name} plan</small>`;
-    av.textContent=(acc.name[0]||'F').toUpperCase();
+  const p=profile(), meta=$('#userMeta'), av=$('#userAvatar'), btn=$('#logoutBtn');
+  if(p){
+    meta.innerHTML=`<div>${esc(p.name)}</div><small>${PLANS.find(x=>x.id===(p.plan||'free')).name} plan</small>`;
+    av.textContent=(p.name[0]||'F').toUpperCase();
     btn.title='Log out'; btn.dataset.act='logout';
     btn.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 12H4M9 7l-5 5 5 5"/><path d="M14 4h4a2 2 0 012 2v12a2 2 0 01-2 2h-4"/></svg>`;
   } else {
