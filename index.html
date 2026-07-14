@@ -796,7 +796,11 @@ async function callAI(engine,userPrompt,history=[],files=[],previousImage=null){
   const r=await fetch(CONFIG.BACKEND_URL,{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({engine,prompt:userPrompt,history,files,previousImage})});
   if(r.status===413) throw new Error('Attachments are too large — remove one and try again.');
-  if(!r.ok)throw new Error('backend '+r.status);
+  if(!r.ok){
+    let detail='';
+    try{ const errBody=await r.json(); detail=errBody.detail||errBody.error||''; }catch(e){}
+    throw new Error('backend '+r.status+(detail?': '+detail:''));
+  }
   const d=await r.json();
   if(!d.text && !d.image)throw new Error('empty');
   return engine==='image' ? d.image : d.text;
